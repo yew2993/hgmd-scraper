@@ -1,34 +1,33 @@
-const puppeteer = require('puppeteer');
-var fs = require('fs');
-
-
+const puppeteer = require('puppeteer')
+const parseArgs = require('minimist')
 
 (async () => {
+  const genePage = {
+    getMutationTypeTable: {
+      evaluate: ({gene}) => {
+        let trs = Array.from(document.querySelectorAll("body > div.content > form > table:nth-child(5) tr"))
+        return trs.reduce((info, {childNodes: tds}) => {
+          return {
+            ...info, 
+            [tds[0].innerText]: tds[1].innerText,
+          }
+        }, {gene})
+      }
+    }
+  }
   const browser = await puppeteer.launch()
   const page = await browser.newPage()
   const baseUrl = 'https://portal.biobase-international.com/hgmd/pro/gene.php?gene='
-  
+
   const genes = ['hmbs','cpox','ppox','alad','urod','uros','fech','alas2']
-  let data = {}
+  let data = []
+
   for (let i = 0; i < genes.length; i++) {
     await page.goto(baseUrl + genes[i]) 
-    data[genes[i]] = await page.evaluate(() => {
-      const trs = Array.from(document.querySelectorAll("body > div.content > form > table:nth-child(5) tr.odd, body > div.content > form > table:nth-child(5) tr.even"))
-      return trs.map(tr => {
-        let tds = tr.childNodes
-        return {
-          mut: tds[0].innerText,
-          num: tds[1].innerText,
-        }
-      });
-    })
+    data.push(await page.evaluate(genePage.getMutationTypeTable.evaluate, {gene: genes[i]}))
   }
-  fs.writeFile("./results.json", JSON.stringify(data), function(err) {
-    if(err) {
-        return console.log(err);
-    }
 
-    console.log("The file was saved!");
-  }); 
+  console.log(data)
+  
   await browser.close()
 })();
